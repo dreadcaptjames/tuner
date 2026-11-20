@@ -569,7 +569,7 @@
     els.readout.textContent = text;
     els.hint.textContent = "READY WHEN YOU ARE";
     $("centsValue").textContent = "— ¢";
-    els.meter.className = "meter";
+    els.meter.className = "meter module";
     els.needle.style.left = "50%";
     [...els.strings.children].forEach((b) => b.classList.remove("active"));
   }
@@ -629,7 +629,7 @@
 
     const a = Math.abs(cents);
     $("centsValue").textContent = (cents >= 0 ? "+" : "") + cents.toFixed(0) + " ¢";
-    els.meter.className = "meter " + (a <= IN_TUNE ? "in-tune" : a <= NEAR ? "near" : "far");
+    els.meter.className = "meter module " + (a <= IN_TUNE ? "in-tune" : a <= NEAR ? "near" : "far");
     els.hint.textContent = a <= IN_TUNE ? "In tune ✓" : cents < 0 ? "Too low — tighten ↑" : "Too high — loosen ↓";
 
     [...els.strings.children].forEach((b, j) => b.classList.toggle("active", j === idx));
