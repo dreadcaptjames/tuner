@@ -4,6 +4,10 @@ A beautifully redesigned, privacy-first browser tuner for guitar, banjo, and man
 
 **Live app:** https://dreadcaptjames.github.io/tuner/
 
+## App icon
+
+The app uses a custom tuning-meter and stringed-instrument icon in the Penny color palette, available as SVG and PNG icons for browser tabs, iPad home screens, and Android installation.
+
 ## What it does
 
 - **Seven saved appearances:** Analog '77 (vintage amber), Midnight (blue console), Neon Stage (electric pink), Paper & Ink (warm light mode), Forest Room (sage green), Chrome (cool silver), and Penny (deep teal, dusty blue, warm cream, copper, warm taupe, and charcoal navy). Choose a theme in the *Choose your aesthetic* gallery; it is remembered on that device.
