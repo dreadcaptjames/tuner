@@ -4,17 +4,26 @@ A browser-based chromatic tuner for **guitar, banjo and mandolin**. It's a stati
 
 ## Use it
 
-Open `index.html` in a browser. Microphone access only works over `https://` or `localhost`, so either:
+**Live app:** https://dreadcaptjames.github.io/tuner/
 
-- host it on GitHub Pages (Settings → Pages → deploy from this branch), or
-- run it locally: `python3 -m http.server` and then open http://localhost:8000
+Open the link on your phone and add it to your home screen. It then opens full-screen like a normal app and works offline.
+- **iPhone/iPad (Safari):** Share → Add to Home Screen
+- **Android (Chrome):** ⋮ menu → Install app (or Add to Home screen)
 
-Pick an instrument and tuning, tap **Start tuning**, and play one string at a time. The needle shows how many cents you're off. Green (within ±5¢) means you're in tune.
+Pick an instrument and tuning, tap **Start tuning**, allow the microphone, and play one string at a time. The needle shows how many cents you're off. Green (within ±5¢) means you're in tune. The screen stays awake while you're tuning.
 
 - **Auto mode** (default): the tuner picks the string closest to the note it hears.
 - **Lock a string**: tap a string button to tune just that string, even when it's far off. Tap it again to go back to auto.
 - **Reference tone**: tick "Play reference tone on tap" to hear each string's target pitch.
 - **A4 calibration**: change the 440 Hz reference (415–466 Hz).
+
+### Run it locally
+
+`python3 -m http.server` and then open http://localhost:8000. The microphone only works over `https://` or `localhost`.
+
+## Deployment
+
+`.github/workflows/pages.yml` publishes the site to GitHub Pages on every push to `main`. One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
 ## Tunings
 
