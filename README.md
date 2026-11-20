@@ -1,12 +1,12 @@
 # Tuner.
 
-A beautifully redesigned, privacy-first browser tuner for guitar, banjo, and mandolin. Real-time pitch detection meets a studio-inspired interface with **six selectable themes**. No accounts, build step, dependencies, or audio uploads.
+A beautifully redesigned, privacy-first browser tuner for guitar, banjo, and mandolin. Real-time pitch detection meets a studio-inspired interface with **seven selectable themes**. No accounts, build step, dependencies, or audio uploads.
 
 **Live app:** https://dreadcaptjames.github.io/tuner/
 
 ## What it does
 
-- **Six saved appearances:** Analog '77 (vintage amber), Midnight (blue console), Neon Stage (electric pink), Paper & Ink (warm light mode), Forest Room (sage green), and Chrome (cool silver). Choose a theme in the *Choose your aesthetic* gallery; it is remembered on that device.
+- **Seven saved appearances:** Analog '77 (vintage amber), Midnight (blue console), Neon Stage (electric pink), Paper & Ink (warm light mode), Forest Room (sage green), Chrome (cool silver), and Penny (deep teal, dusty blue, warm cream, copper, warm taupe, and charcoal navy). Choose a theme in the *Choose your aesthetic* gallery; it is remembered on that device.
 - **Live tuning meter:** Oversized note, frequency readout, ±50¢ precision scale, color-coded needle, and flat/sharp guidance. A string is marked in tune within ±5 cents.
 - **Three instruments:** Guitar, banjo, and mandolin, with standard and alternate tunings, including tenor banjo, mandola, and octave mandolin.
 - **Auto or locked strings:** The closest string is selected automatically. Tap a string to lock it; tap again for auto.
