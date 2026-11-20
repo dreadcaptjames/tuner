@@ -93,9 +93,6 @@
   .top-tools {display:flex;gap:11px;align-items:center}
   .privacy {display:flex;gap:7px;align-items:center;color:var(--dim);font-size:.72rem;font-weight:650;white-space:nowrap}
   .privacy:before {content:"";width:7px;height:7px;border-radius:50%;background:var(--good)}
-  .theme-link {display:inline-flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid var(--line);
-    border-radius:99px;text-decoration:none;color:var(--text);font-weight:750;font-size:.78rem;background:var(--panel)}
-  .theme-link:hover {border-color:var(--accent)}
   .kicker {font-size:.69rem;letter-spacing:.2em;font-weight:850;color:var(--accent);text-transform:uppercase}
   .headline {display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:23px}
   h1 {font-size:clamp(2rem,5vw,3.5rem);letter-spacing:-.055em;line-height:1.04;margin:8px 0 8px;font-weight:850}
@@ -229,7 +226,6 @@
     .brand-title {font-size:1.05rem}
     .brand-sub {font-size:.57rem}
     .privacy {display:none}
-    .theme-link {padding:9px 11px;font-size:.72rem}
     .headline {margin-bottom:21px}
     h1 {font-size:2.25rem}
     .version {display:none}
@@ -248,7 +244,6 @@
   @media(max-width:410px) {
     .brand {gap:9px}
     .brand-title {letter-spacing:.12em}
-    .theme-link span {display:none}
     .note {font-size:6.5rem}
     .strings {min-width:390px}
     .theme-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -270,7 +265,6 @@
     </div>
     <div class="top-tools">
       <span class="privacy">PRIVATE · ON DEVICE</span>
-      <a href="#themes" class="theme-link" aria-label="Jump to appearance themes"><span aria-hidden="true">◈</span><span>Customize</span></a>
     </div>
   </header>
 
