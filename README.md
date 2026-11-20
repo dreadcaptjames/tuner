@@ -23,7 +23,7 @@ Pick an instrument and tuning, tap **Start tuning**, allow the microphone, and p
 
 ## Deployment
 
-`.github/workflows/pages.yml` publishes the site to GitHub Pages on every push to `main`. One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+GitHub Pages publishes the `main` branch automatically (Settings → Pages → Deploy from a branch → `main`, root). Push to `main` and the live app updates within a minute or two.
 
 ## Tunings
 
