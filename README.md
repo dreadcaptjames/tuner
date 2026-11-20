@@ -1,1 +1,31 @@
-# tuner
+# Tuner
+
+A browser-based chromatic tuner for **guitar, banjo and mandolin**. It's a static page with no build step and no dependencies, and it runs entirely on your device.
+
+## Use it
+
+Open `index.html` in a browser. Microphone access only works over `https://` or `localhost`, so either:
+
+- host it on GitHub Pages (Settings → Pages → deploy from this branch), or
+- run it locally: `python3 -m http.server` and then open http://localhost:8000
+
+Pick an instrument and tuning, tap **Start tuning**, and play one string at a time. The needle shows how many cents you're off. Green (within ±5¢) means you're in tune.
+
+- **Auto mode** (default): the tuner picks the string closest to the note it hears.
+- **Lock a string**: tap a string button to tune just that string, even when it's far off. Tap it again to go back to auto.
+- **Reference tone**: tick "Play reference tone on tap" to hear each string's target pitch.
+- **A4 calibration**: change the 440 Hz reference (415–466 Hz).
+
+## Tunings
+
+| Instrument | Tunings |
+|---|---|
+| Guitar | Standard, Drop D, Half step down, Whole step down, DADGAD, Open G, Open D, Open E, Drop C |
+| Banjo | Open G, Double C, Standard C, Open D, Sawmill, Open A, Tenor standard (CGDA), Tenor Irish (GDAE) |
+| Mandolin | Standard (GDAE), Cross A, Open G, Mandola (CGDA), Octave mandolin |
+
+To add a tuning, edit the `TUNINGS` table in `index.html`.
+
+## How it works
+
+`pitch.js` uses the YIN pitch-detection algorithm with parabolic interpolation. On synthetic test tones with strong overtones it reads within about 0.2 cents. The readings are smoothed with a short median filter so the needle stays steady.
