@@ -1,40 +1,47 @@
-# Tuner
+# Tuner.
 
-A browser-based chromatic tuner for **guitar, banjo and mandolin**. It's a static page with no build step and no dependencies, and it runs entirely on your device.
-
-## Use it
+A beautifully redesigned, privacy-first browser tuner for guitar, banjo, and mandolin. Real-time pitch detection meets a studio-inspired interface with **six selectable themes**. No accounts, build step, dependencies, or audio uploads.
 
 **Live app:** https://dreadcaptjames.github.io/tuner/
 
-Open the link on your phone and add it to your home screen. It then opens full-screen like a normal app and works offline.
-- **iPhone/iPad (Safari):** Share → Add to Home Screen
-- **Android (Chrome):** ⋮ menu → Install app (or Add to Home screen)
+## What it does
 
-Pick an instrument and tuning, tap **Start tuning**, allow the microphone, and play one string at a time. The needle shows how many cents you're off. Green (within ±5¢) means you're in tune. The screen stays awake while you're tuning.
+- **Six saved appearances:** Analog '77 (vintage amber), Midnight (blue console), Neon Stage (electric pink), Paper & Ink (warm light mode), Forest Room (sage green), and Chrome (cool silver). Choose a theme in the *Choose your aesthetic* gallery; it is remembered on that device.
+- **Live tuning meter:** Oversized note, frequency readout, ±50¢ precision scale, color-coded needle, and flat/sharp guidance. A string is marked in tune within ±5 cents.
+- **Three instruments:** Guitar, banjo, and mandolin, with standard and alternate tunings, including tenor banjo, mandola, and octave mandolin.
+- **Auto or locked strings:** The closest string is selected automatically. Tap a string to lock it; tap again for auto.
+- **Reference tones:** Optionally play the target pitch when tapping a string.
+- **A4 calibration:** Adjustable from 415–466 Hz; the default is 440 Hz.
+- **On-device audio:** The microphone is analyzed locally with YIN pitch detection and smoothed frequency readings. No audio is sent to a server.
+- **Mobile and offline friendly:** Responsive layout, touch-friendly controls, installable home-screen icons, and an offline app shell. A screen wake lock is requested during tuning when supported.
 
-- **Auto mode** (default): the tuner picks the string closest to the note it hears.
-- **Lock a string**: tap a string button to tune just that string, even when it's far off. Tap it again to go back to auto.
-- **Reference tone**: tick "Play reference tone on tap" to hear each string's target pitch.
-- **A4 calibration**: change the 440 Hz reference (415–466 Hz).
+## Using the tuner
 
-### Run it locally
+1. Open [the tuner](https://dreadcaptjames.github.io/tuner/).
+2. Choose Guitar, Banjo, or Mandolin, then a tuning. Adjust A4 if needed.
+3. Press **Start tuning** and grant microphone permission.
+4. Play one string at a time. Follow the meter until it reads **In tune** and the string marks as complete.
+5. Optionally tap a string to lock its target, or enable reference tones.
+6. Scroll to **Choose your aesthetic** to switch looks instantly.
 
-`python3 -m http.server` and then open http://localhost:8000. The microphone only works over `https://` or `localhost`.
+On iPad or iPhone, open in Safari and use **Share → Add to Home Screen**. On Android, use Chrome's **Install app** or **Add to Home screen** menu.
 
-## Deployment
+## Development
 
-GitHub Pages publishes the `main` branch automatically (Settings → Pages → Deploy from a branch → `main`, root). Push to `main` and the live app updates within a minute or two.
+The app is plain HTML, CSS, and JavaScript. Run a local server with:
+
+```sh
+python3 -m http.server 8000
+```
+
+Then open http://localhost:8000. Microphone access requires a secure origin (HTTPS or localhost). GitHub Pages serves the root of the `main` branch.
 
 ## Tunings
 
-| Instrument | Tunings |
-|---|---|
+| Instrument | Options |
+| --- | --- |
 | Guitar | Standard, Drop D, Half step down, Whole step down, DADGAD, Open G, Open D, Open E, Drop C |
-| Banjo | Open G, Double C, Standard C, Open D, Sawmill, Open A, Tenor standard (CGDA), Tenor Irish (GDAE) |
-| Mandolin | Standard (GDAE), Cross A, Open G, Mandola (CGDA), Octave mandolin |
+| Banjo | Open G, Double C, Standard C, Open D, Sawmill, Open A, Tenor standard, Tenor Irish |
+| Mandolin | Standard, Cross A, Open G, Mandola, Octave mandolin |
 
-To add a tuning, edit the `TUNINGS` table in `index.html`.
-
-## How it works
-
-`pitch.js` uses the YIN pitch-detection algorithm with parabolic interpolation. On synthetic test tones with strong overtones it reads within about 0.2 cents. The readings are smoothed with a short median filter so the needle stays steady.
+Tunings are defined in `index.html`; the pitch engine is in `pitch.js`. Theme palettes and theme cards are also defined in `index.html`. The service worker in `sw.js` handles shell caching and network-first navigation.
