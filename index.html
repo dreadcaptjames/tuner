@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tuner">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon.svg?v=2" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2">
+<link rel="icon" href="icons/icon.svg?v=3" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=3">
 <title>Tuner. — The Signal Studio</title>
 <style>
 
@@ -87,6 +87,7 @@
   .brand {display:flex;gap:14px;align-items:center;min-width:0}
   .brand-icon {width:51px;height:51px;display:grid;place-items:center;border:1px solid var(--accent);
     border-radius:15px;color:var(--accent);background:var(--glow);font-size:26px;flex-shrink:0}
+  .brand-icon img {width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
   .brand-title {font-size:1.24rem;line-height:1.05;letter-spacing:.2em;font-weight:900}
   .brand-sub {display:block;color:var(--dim);font-size:.63rem;font-weight:750;letter-spacing:.22em;margin-top:6px;text-transform:uppercase}
   .top-tools {display:flex;gap:11px;align-items:center}
@@ -264,7 +265,7 @@
 <main class="shell">
   <header class="topbar">
     <div class="brand">
-      <div class="brand-icon" aria-hidden="true">♬</div>
+      <div class="brand-icon" aria-hidden="true"><img src="icons/icon-192.png?v=3" width="51" height="51" alt=""></div>
       <div><div class="brand-title">TUNER<span style="color:var(--accent)">.</span></div><span class="brand-sub">The signal studio</span></div>
     </div>
     <div class="top-tools">
