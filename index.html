@@ -52,6 +52,25 @@
     --text:#fbfdff;--dim:#b9c7d3;--quiet:#8193a5;
     --accent:#d4e9f6;--accent-ink:#18232e;--good:#80e2c9;--warn:#ffd495;--bad:#ff978e;--glow:rgba(212,233,246,.15);
   }
+
+  :root[data-theme="penny"] {
+    color-scheme:light;
+    --bg:#E8DFD3; --panel:#F5EEE5; --panel-hi:#E9E0D6; --line:#B5A99C;
+    --text:#24323A; --dim:#605A53; --quiet:#8B7768;
+    --accent:#C46A3A; --accent-ink:#FFF8F0;
+    --good:#0E5875; --warn:#C46A3A; --bad:#A64F3E;
+    --glow:rgba(14,88,117,.12); --inset:rgba(36,50,58,.035);
+    --surface-pattern:repeating-linear-gradient(90deg,transparent 0,transparent 5px,rgba(14,88,117,.018) 6px);
+    --shadow:0 24px 55px rgba(36,50,58,.10);
+  }
+  :root[data-theme="penny"] .brand-icon {border-color:#0E5875;color:#0E5875;background:rgba(111,153,168,.16)}
+  :root[data-theme="penny"] .signal,
+  :root[data-theme="penny"] .mode-info {border-color:#6F99A8}
+  :root[data-theme="penny"] .scale-rail {background:#6F99A8}
+  :root[data-theme="penny"] .note-overline {color:#0E5875}
+  :root[data-theme="penny"] .theme-choice[data-theme-choice="penny"] .theme-art {
+    background:linear-gradient(135deg,#E8DFD3 0 49%,#6F99A8 49% 72%,#0E5875 72%)
+  }
   * {box-sizing:border-box}
   html {min-height:100%;background:var(--bg);scroll-behavior:smooth}
   body {margin:0;min-height:100vh;color:var(--text);background:
@@ -132,7 +151,7 @@
     border-radius:50%;background:inherit;box-shadow:0 0 0 4px var(--panel)}
   .labels {position:absolute;bottom:0;left:0;right:0;color:var(--dim);font:700 .66rem ui-monospace,Menlo,Consolas,monospace}
   .labels span {position:absolute;transform:translateX(-50%)}
-  .hint {min-height:34px;margin-top:6px;font-weight:850;font-size:1.06rem}
+  .hint {min-height:34px;margin-top:16px;font-weight:850;font-size:1.06rem}
   .in-tune .note,.in-tune .hint {color:var(--good)}
   .near .hint {color:var(--warn)}
   .far .hint {color:var(--bad)}
@@ -178,7 +197,7 @@
   .theme-heading h2 {font-size:1.38rem;letter-spacing:-.025em;margin:5px 0 3px}
   .theme-heading p {color:var(--dim);margin:0;font-size:.81rem}
   .theme-current {font:700 .7rem ui-monospace,Menlo,Consolas,monospace;color:var(--dim)}
-  .theme-grid {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:11px}
+  .theme-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
   .theme-choice {background:var(--bg);border:1px solid var(--line);border-radius:14px;color:var(--text);
     padding:7px;text-align:left;min-width:0;transition:transform .15s,border .15s}
   .theme-choice:hover {transform:translateY(-3px);border-color:var(--accent)}
@@ -318,7 +337,7 @@
 
   <section class="module themes" id="themes" aria-label="Appearance themes">
     <div class="theme-heading">
-      <div><div class="kicker">MAKE IT YOUR STUDIO</div><h2>Choose your aesthetic.</h2><p>Six distinct looks. Your pick stays saved on this device.</p></div>
+      <div><div class="kicker">MAKE IT YOUR STUDIO</div><h2>Choose your aesthetic.</h2><p>Seven distinct looks. Your pick stays saved on this device.</p></div>
       <span class="theme-current" id="themeCurrent">ANALOG '77</span>
     </div>
     <div class="theme-grid" role="group" aria-label="Select visual theme">
@@ -328,6 +347,7 @@
       <button type="button" class="theme-choice" data-theme-choice="paper" aria-pressed="false" style="--preview-bg:#eee8d9;--preview-panel:#fffaf0;--preview-line:#d7c9b2;--preview-accent:#b95d33"><span class="theme-art"><span class="theme-bar"></span></span><span class="theme-name">Paper &amp; Ink</span><span class="theme-description">Warm, clean, classic</span></button>
       <button type="button" class="theme-choice" data-theme-choice="forest" aria-pressed="false" style="--preview-bg:#101b17;--preview-panel:#26382b;--preview-line:#49614d;--preview-accent:#d3d88a"><span class="theme-art"><span class="theme-bar"></span></span><span class="theme-name">Forest Room</span><span class="theme-description">Deep green &amp; sage</span></button>
       <button type="button" class="theme-choice" data-theme-choice="chrome" aria-pressed="false" style="--preview-bg:#161b22;--preview-panel:#303944;--preview-line:#4c5967;--preview-accent:#d4e9f6"><span class="theme-art"><span class="theme-bar"></span></span><span class="theme-name">Chrome</span><span class="theme-description">Polished modern gear</span></button>
+      <button type="button" class="theme-choice" data-theme-choice="penny" aria-pressed="false" style="--preview-bg:#E8DFD3;--preview-panel:#24323A;--preview-line:#6F99A8;--preview-accent:#C46A3A"><span class="theme-art"><span class="theme-bar"></span></span><span class="theme-name">Penny</span><span class="theme-description">Teal, copper &amp; cream</span></button>
     </div>
   </section>
   <footer class="foot"><span>BUILT FOR YOUR EARS. TUNED FOR YOUR HANDS.</span><span>OFFLINE READY • GUITAR / BANJO / MANDOLIN</span></footer>
@@ -343,7 +363,8 @@
     neon: { name:"NEON STAGE", color:"#100c1b" },
     paper: { name:"PAPER & INK", color:"#eee8d9" },
     forest: { name:"FOREST ROOM", color:"#101b17" },
-    chrome: { name:"CHROME", color:"#161b22" }
+    chrome: { name:"CHROME", color:"#161b22" },
+    penny: { name:"PENNY", color:"#E8DFD3" }
   };
   const choices = Array.from(document.querySelectorAll("[data-theme-choice]"));
   function applyTheme(key) {
