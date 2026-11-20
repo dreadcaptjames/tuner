@@ -1,26 +1,43 @@
-// Offline support: cache the app shell, serve cache-first, refresh in background.
-const CACHE = "tuner-v2";
+// Offline support. Navigation is network-first so published UI updates appear promptly;
+// cached app shell remains available when the network drops.
+const CACHE = "tuner-v3-themes";
 const FILES = ["./", "index.html", "pitch.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)).then(() => self.skipWaiting()));
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+self.addEventListener("activate", (event) => {
+  event.waitUntil(caches.keys()
+    .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
     .then(() => self.clients.claim()));
 });
 
-self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(caches.open(CACHE).then(async (cache) => {
-    const cached = await cache.match(e.request, { ignoreSearch: true });
-    const fresh = fetch(e.request).then((res) => {
-      if (res.ok) cache.put(e.request, res.clone());
-      return res;
-    }).catch(() => cached);
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET" || new URL(event.request.url).origin !== location.origin) return;
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).then(async (response) => {
+      if (response.ok) {
+        const cache = await caches.open(CACHE);
+        cache.put(event.request, response.clone());
+      }
+      return response;
+    }).catch(async () => {
+      const cache = await caches.open(CACHE);
+      return (await cache.match(event.request, { ignoreSearch: true }))
+        || (await cache.match("./")) || Response.error();
+    }));
+    return;
+  }
+
+  event.respondWith(caches.open(CACHE).then(async (cache) => {
+    const cached = await cache.match(event.request, { ignoreSearch: true });
+    const fresh = fetch(event.request).then((response) => {
+      if (response.ok) cache.put(event.request, response.clone());
+      return response;
+    }).catch(() => cached || Response.error());
     return cached || fresh;
   }));
 });
