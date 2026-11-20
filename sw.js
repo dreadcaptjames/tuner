@@ -1,6 +1,6 @@
 // Offline support. Navigation is network-first so published UI updates appear promptly;
 // cached app shell remains available when the network drops.
-const CACHE = "tuner-v3-themes";
+const CACHE = "tuner-v4-penny";
 const FILES = ["./", "index.html", "pitch.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
