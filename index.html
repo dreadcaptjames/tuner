@@ -534,61 +534,82 @@
   let lastHeard = 0;
   let shownCents = 0;
 
-  // The mic stream is kept for the whole visit, so pausing and resuming never asks
-  // for permission again. It's released when the app goes to the background.
-  let micStream = null;
+  // One mic stream and one audio graph are kept for the whole visit, so Stop/Start
+  // never asks for permission again (and iOS never ends up with a silent stream).
+  // Everything is released when the app goes to the background.
+  let graph = null; // { ctx, stream, analyser, buf }
 
-  async function getMic() {
-    if (micStream && micStream.getAudioTracks().some((t) => t.readyState === "live")) return micStream;
-    micStream = await navigator.mediaDevices.getUserMedia({
+  async function getGraph() {
+    if (graph && graph.stream.getAudioTracks().some((t) => t.readyState === "live")) return graph;
+    releaseMic();
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
-    return micStream;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const hp = ctx.createBiquadFilter(); // cut rumble below the lowest string
+    hp.type = "highpass"; hp.frequency.value = 50;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = ctx.sampleRate > 50000 ? 8192 : 4096;
+    src.connect(hp).connect(analyser);
+    graph = { ctx, stream, analyser, buf: new Float32Array(analyser.fftSize) };
+    return graph;
   }
 
   function releaseMic() {
-    if (micStream) micStream.getTracks().forEach((t) => t.stop());
-    micStream = null;
+    if (!graph) return;
+    graph.stream.getTracks().forEach((t) => t.stop());
+    graph.ctx.close().catch(() => {});
+    graph = null;
   }
 
+  // Browsers keep audio paused until the user touches the page. If we started
+  // without a tap (auto-start), wait for the first touch anywhere.
+  function ensureRunning(ctx) {
+    if (ctx.state === "running") return;
+    ctx.resume().catch(() => {});
+    setTimeout(() => {
+      if (ctx.state === "running" || !audio) return;
+      els.readout.textContent = "Tap anywhere to start listening";
+      const go = () => {
+        ctx.resume().then(() => { if (audio) els.readout.textContent = "Listening… play a string"; }).catch(() => {});
+      };
+      document.addEventListener("pointerdown", go, { once: true, capture: true });
+    }, 300);
+  }
+
+  let starting = false;
   async function start() {
+    if (starting || audio) return;
     els.msg.textContent = "";
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       els.msg.textContent = "This browser can't access the microphone. Open the page over https:// or localhost.";
       return;
     }
+    starting = true;
     try {
-      const stream = await getMic();
-      stream.getAudioTracks().forEach((t) => { t.enabled = true; });
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      await ctx.resume();
-      const src = ctx.createMediaStreamSource(stream);
-      const hp = ctx.createBiquadFilter(); // cut rumble below the lowest string
-      hp.type = "highpass"; hp.frequency.value = 50;
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = ctx.sampleRate > 50000 ? 8192 : 4096;
-      src.connect(hp).connect(analyser);
-      audio = { ctx, stream, analyser, buf: new Float32Array(analyser.fftSize) };
+      audio = await getGraph();
       els.start.textContent = "Stop";
       els.start.classList.add("on");
       els.readout.textContent = "Listening… play a string";
+      ensureRunning(audio.ctx);
       try { localStorage.setItem("tuner-mic", "1"); } catch (_) {}
+      cancelAnimationFrame(raf);
       loop();
     } catch (e) {
+      audio = null;
       els.msg.textContent = e && e.name === "NotAllowedError"
         ? "Microphone permission was denied. Allow it in your browser settings and try again."
         : "Couldn't start the microphone: " + (e && e.message ? e.message : e);
+    } finally {
+      starting = false;
     }
   }
 
   function stop(release) {
     cancelAnimationFrame(raf);
-    if (audio) {
-      audio.ctx.close();
-      audio = null;
-    }
+    audio = null;
     if (release) releaseMic();
-    else if (micStream) micStream.getAudioTracks().forEach((t) => { t.enabled = false; });
     els.start.textContent = "Start tuning";
     els.start.classList.remove("on");
     resetDisplay("Tap Start and play a string");
