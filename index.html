@@ -565,14 +565,26 @@
 
   // Browsers keep audio paused until the user touches the page. If we started
   // without a tap (auto-start), wait for the first touch anywhere.
+  // Status light ("STANDBY" / "LISTENING") and the Start/Stop button label.
+  function setListening(on, label) {
+    document.body.classList.toggle("is-listening", on);
+    const st = document.getElementById("listenState");
+    if (st) st.textContent = label || (on ? "LISTENING" : "STANDBY");
+    const lbl = document.getElementById("startLabel");
+    if (lbl) lbl.textContent = on ? "Stop" : "Start tuning";
+    else els.start.textContent = on ? "Stop" : "Start tuning";
+    els.start.classList.toggle("on", on);
+  }
+
   function ensureRunning(ctx) {
     if (ctx.state === "running") return;
     ctx.resume().catch(() => {});
     setTimeout(() => {
       if (ctx.state === "running" || !audio) return;
       els.readout.textContent = "Tap anywhere to start listening";
+      setListening(true, "TAP TO START");
       const go = () => {
-        ctx.resume().then(() => { if (audio) els.readout.textContent = "Listening… play a string"; }).catch(() => {});
+        ctx.resume().then(() => { if (audio) { setListening(true); els.readout.textContent = "Listening… play a string"; } }).catch(() => {});
       };
       document.addEventListener("pointerdown", go, { once: true, capture: true });
     }, 300);
@@ -589,10 +601,10 @@
     starting = true;
     try {
       audio = await getGraph();
-      els.start.textContent = "Stop";
-      els.start.classList.add("on");
+      setListening(true);
       els.readout.textContent = "Listening… play a string";
       ensureRunning(audio.ctx);
+      els.meter.scrollIntoView({ behavior: "smooth", block: "center" });
       try { localStorage.setItem("tuner-mic", "1"); } catch (_) {}
       cancelAnimationFrame(raf);
       loop();
@@ -610,8 +622,7 @@
     cancelAnimationFrame(raf);
     audio = null;
     if (release) releaseMic();
-    els.start.textContent = "Start tuning";
-    els.start.classList.remove("on");
+    setListening(false);
     resetDisplay("Tap Start and play a string");
   }
 
