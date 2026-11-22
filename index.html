@@ -534,6 +534,23 @@
   let lastHeard = 0;
   let shownCents = 0;
 
+  // The mic stream is kept for the whole visit, so pausing and resuming never asks
+  // for permission again. It's released when the app goes to the background.
+  let micStream = null;
+
+  async function getMic() {
+    if (micStream && micStream.getAudioTracks().some((t) => t.readyState === "live")) return micStream;
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    return micStream;
+  }
+
+  function releaseMic() {
+    if (micStream) micStream.getTracks().forEach((t) => t.stop());
+    micStream = null;
+  }
+
   async function start() {
     els.msg.textContent = "";
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -541,9 +558,8 @@
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
+      const stream = await getMic();
+      stream.getAudioTracks().forEach((t) => { t.enabled = true; });
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       await ctx.resume();
       const src = ctx.createMediaStreamSource(stream);
@@ -553,11 +569,10 @@
       analyser.fftSize = ctx.sampleRate > 50000 ? 8192 : 4096;
       src.connect(hp).connect(analyser);
       audio = { ctx, stream, analyser, buf: new Float32Array(analyser.fftSize) };
-      $("startLabel").textContent = "Stop listening";
+      els.start.textContent = "Stop";
       els.start.classList.add("on");
-      document.body.classList.add("is-listening");
-      $("listenState").textContent = "LIVE INPUT";
       els.readout.textContent = "Listening… play a string";
+      try { localStorage.setItem("tuner-mic", "1"); } catch (_) {}
       loop();
     } catch (e) {
       els.msg.textContent = e && e.name === "NotAllowedError"
@@ -566,17 +581,16 @@
     }
   }
 
-  function stop() {
+  function stop(release) {
     cancelAnimationFrame(raf);
     if (audio) {
-      audio.stream.getTracks().forEach((t) => t.stop());
       audio.ctx.close();
       audio = null;
     }
-    $("startLabel").textContent = "Start tuning";
+    if (release) releaseMic();
+    else if (micStream) micStream.getAudioTracks().forEach((t) => { t.enabled = false; });
+    els.start.textContent = "Start tuning";
     els.start.classList.remove("on");
-    document.body.classList.remove("is-listening");
-    $("listenState").textContent = "STANDBY";
     resetDisplay("Tap Start and play a string");
   }
 
@@ -669,7 +683,28 @@
     els.a4.value = state.a4; save(); renderStrings();
   });
   els.tone.addEventListener("change", () => { state.tone = els.tone.checked; save(); renderStrings(); });
-  els.start.addEventListener("click", () => (audio ? stop() : start()));
+  els.start.addEventListener("click", () => (audio ? stop(false) : start()));
+
+  // Going to the background frees the mic; coming back resumes tuning if it was on.
+  let resumeOnShow = false;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      resumeOnShow = !!audio;
+      stop(true);
+    } else if (resumeOnShow) {
+      resumeOnShow = false;
+      start();
+    }
+  });
+
+  // If the browser has already remembered mic permission, start listening right away.
+  (async () => {
+    try {
+      if (localStorage.getItem("tuner-mic") !== "1" || !navigator.permissions) return;
+      const status = await navigator.permissions.query({ name: "microphone" });
+      if (status.state === "granted" && !audio) start();
+    } catch (_) { /* permissions API not available for microphone */ }
+  })();
 
   els.a4.value = state.a4;
   els.tone.checked = state.tone;

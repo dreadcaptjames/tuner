@@ -1,11 +1,14 @@
-// Offline support. Navigation is network-first so published UI updates appear promptly;
-// cached app shell remains available when the network drops.
-const CACHE = "tuner-v6-approved-icon";
+// Offline support: everything is served from the on-device cache first, so the app
+// opens instantly with or without a connection. A fresh copy is fetched in the
+// background and used the next time the app opens.
+const CACHE = "tuner-v7-offline";
 const FILES = ["./", "index.html", "pitch.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE)
+    .then((cache) => cache.addAll(FILES.map((f) => new Request(f, { cache: "reload" }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -15,29 +18,18 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET" || new URL(event.request.url).origin !== location.origin) return;
-
-  if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).then(async (response) => {
-      if (response.ok) {
-        const cache = await caches.open(CACHE);
-        cache.put(event.request, response.clone());
-      }
-      return response;
-    }).catch(async () => {
-      const cache = await caches.open(CACHE);
-      return (await cache.match(event.request, { ignoreSearch: true }))
-        || (await cache.match("./")) || Response.error();
-    }));
-    return;
-  }
+  const req = event.request;
+  if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
+  const isPage = req.mode === "navigate";
 
   event.respondWith(caches.open(CACHE).then(async (cache) => {
-    const cached = await cache.match(event.request, { ignoreSearch: true });
-    const fresh = fetch(event.request).then((response) => {
-      if (response.ok) cache.put(event.request, response.clone());
-      return response;
+    const cached = (await cache.match(req, { ignoreSearch: true }))
+      || (isPage ? (await cache.match("./")) || (await cache.match("index.html")) : undefined);
+    const fresh = fetch(req).then((res) => {
+      if (res.ok) event.waitUntil(cache.put(isPage ? "./" : req, res.clone()));
+      return res;
     }).catch(() => cached || Response.error());
-    return cached || fresh;
+    if (cached) { event.waitUntil(fresh.catch(() => {})); return cached; }
+    return fresh;
   }));
 });
