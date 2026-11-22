@@ -253,6 +253,8 @@
     *,*:before,*:after {animation-duration:.001ms!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
   }
 
+  .level {height:6px;max-width:220px;margin:10px auto 0;border-radius:3px;background:var(--line);overflow:hidden}
+  .level-fill {height:100%;width:0;background:var(--good);transition:width .08s linear}
 </style>
 </head>
 <body>
@@ -302,6 +304,7 @@
       <div class="meter-center">
         <div class="note-overline">DETECTED STRING</div>
         <div class="note" id="note">–</div>
+        <div class="level" aria-hidden="true"><div class="level-fill" id="levelFill"></div></div>
         <div class="readout" id="readout">Press start and play a string</div>
       </div>
       <div class="meter-lower">
@@ -539,10 +542,13 @@
   // Everything is released when the app goes to the background.
   let graph = null; // { ctx, stream, analyser, buf }
 
+  // Some phones send pure silence when their audio processing is switched off;
+  // if that happens we rebuild with the browser's default mic settings.
+  let plainMic = false;
   async function getGraph() {
     if (graph && graph.stream.getAudioTracks().some((t) => t.readyState === "live")) return graph;
     releaseMic();
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia(plainMic ? { audio: true } : {
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -641,18 +647,46 @@
     return s[s.length >> 1];
   }
 
+  // Input level: tracks the background noise so quiet phone mics still work.
+  let noiseFloor = 0.002, silentSince = 0, levelShown = 0;
+
   function loop() {
     raf = requestAnimationFrame(loop);
     if (!audio) return;
     audio.analyser.getFloatTimeDomainData(audio.buf);
-    const strs = currentStrings();
-    const lo = Math.min(...strs.map((s) => s.freq)), hi = Math.max(...strs.map((s) => s.freq));
-    const r = P.detectPitch(audio.buf, audio.ctx.sampleRate, {
-      minFreq: Math.max(40, lo * 0.6), maxFreq: Math.min(2000, hi * 1.6), minRms: 0.008,
-    });
     const now = performance.now();
 
-    if (r && r.clarity > 0.85) {
+    let sum = 0, peak = 0;
+    for (let i = 0; i < audio.buf.length; i++) { const v = audio.buf[i]; sum += v * v; if (Math.abs(v) > peak) peak = Math.abs(v); }
+    const rms = Math.sqrt(sum / audio.buf.length);
+    noiseFloor = rms < noiseFloor ? noiseFloor * 0.9 + rms * 0.1 : noiseFloor * 0.995 + rms * 0.005;
+    noiseFloor = Math.max(noiseFloor, 0.00005);
+    // Level bar on a log scale: -70 dB .. -10 dB
+    const db = 20 * Math.log10(Math.max(rms, 1e-7));
+    levelShown += (Math.max(0, Math.min(1, (db + 70) / 60)) - levelShown) * 0.3;
+    const fill = document.getElementById("levelFill");
+    if (fill) fill.style.width = (levelShown * 100).toFixed(1) + "%";
+
+    // Exact zeros for a while means the mic stream is dead: retry with default settings.
+    if (peak === 0 && audio.ctx.state === "running") {
+      if (!silentSince) silentSince = now;
+      else if (now - silentSince > 2000 && !plainMic) {
+        plainMic = true; silentSince = 0;
+        stop(true); start();
+        return;
+      } else if (now - silentSince > 2000) {
+        els.readout.textContent = "No sound from the microphone. Check that no other app is using it.";
+      }
+    } else silentSince = 0;
+
+    const strs = currentStrings();
+    const lo = Math.min(...strs.map((s) => s.freq)), hi = Math.max(...strs.map((s) => s.freq));
+    const gate = Math.max(0.0004, noiseFloor * 2.5);
+    const r = P.detectPitch(audio.buf, audio.ctx.sampleRate, {
+      minFreq: Math.max(40, lo * 0.6), maxFreq: Math.min(2000, hi * 1.6), minRms: gate,
+    });
+
+    if (r && r.clarity > 0.8) {
       // Drop readings that jump far from the current run (e.g. pick attack, octave slips)
       if (recent.length && Math.abs(P.centsBetween(r.freq, median(recent))) > 80) recent.length = 0;
       recent.push(r.freq);
@@ -665,6 +699,7 @@
       resetDisplay("Listening… play a string");
     }
   }
+
 
   function show(freq, strs) {
     // Which string are we tuning?
