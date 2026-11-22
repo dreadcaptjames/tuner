@@ -255,6 +255,9 @@
 
   .level {height:6px;max-width:220px;margin:10px auto 0;border-radius:3px;background:var(--line);overflow:hidden}
   .level-fill {height:100%;width:0;background:var(--good);transition:width .08s linear}
+  .sens-option {display:grid;gap:6px;margin-top:12px;color:var(--text);font-size:.9rem}
+  .sens-option input {width:100%;accent-color:var(--accent)}
+  .sens-option small {color:var(--quiet, #8b929c);font-size:.78rem}
 </style>
 </head>
 <body>
@@ -327,6 +330,9 @@
       <div class="mode-info"><span class="mode-badge">AUTO / LOCK</span><span id="modeText">Auto: detects the nearest string. Tap a string to lock it.</span></div>
       <div class="session-spacer"></div>
       <label class="tone-option"><input type="checkbox" id="tone"><span>Play reference tone when tapping a string</span></label>
+      <label class="sens-option"><span>Sensitivity <b id="sensVal">8</b></span>
+        <input type="range" id="sens" min="1" max="10" step="1" value="8" aria-label="Sensitivity">
+        <small>Higher picks up quieter playing and holds the reading longer.</small></label>
       <button class="start" id="start" type="button"><span class="play-icon" aria-hidden="true">◉</span><span id="startLabel">Start tuning</span></button>
       <div class="msg" id="msg" role="alert"></div>
       <div class="small-print">Microphone stays on your device. Nothing is uploaded.</div>
@@ -648,7 +654,18 @@
   }
 
   // Input level: tracks the background noise so quiet phone mics still work.
-  let noiseFloor = 0.002, silentSince = 0, levelShown = 0;
+  let sens = 8;
+  try { sens = +localStorage.getItem("tuner-sens") || 8; } catch (_) {}
+  const sensEl = document.getElementById("sens"), sensVal = document.getElementById("sensVal");
+  if (sensEl) {
+    sensEl.value = sens; sensVal.textContent = sens;
+    sensEl.addEventListener("input", () => {
+      sens = +sensEl.value; sensVal.textContent = sens;
+      try { localStorage.setItem("tuner-sens", sens); } catch (_) {}
+    });
+  }
+  let lastText = 0;
+  let noiseFloor = 0.0004, silentSince = 0, levelShown = 0;
 
   function loop() {
     raf = requestAnimationFrame(loop);
@@ -681,19 +698,19 @@
 
     const strs = currentStrings();
     const lo = Math.min(...strs.map((s) => s.freq)), hi = Math.max(...strs.map((s) => s.freq));
-    const gate = Math.max(0.0004, noiseFloor * 2.5);
+    const gate = Math.max(0.0003, noiseFloor * (4 - 0.27 * sens));
     const r = P.detectPitch(audio.buf, audio.ctx.sampleRate, {
       minFreq: Math.max(40, lo * 0.6), maxFreq: Math.min(2000, hi * 1.6), minRms: gate,
     });
 
-    if (r && r.clarity > 0.8) {
+    if (r && r.clarity > 0.88 - 0.015 * sens) {
       // Drop readings that jump far from the current run (e.g. pick attack, octave slips)
       if (recent.length && Math.abs(P.centsBetween(r.freq, median(recent))) > 80) recent.length = 0;
       recent.push(r.freq);
-      if (recent.length > 7) recent.shift();
+      if (recent.length > 15) recent.shift();
       lastHeard = now;
-      if (recent.length >= 2) show(median(recent), strs);
-    } else if (now - lastHeard > 1200 && lastHeard) {
+      if (recent.length >= 3) show(median(recent), strs);
+    } else if (now - lastHeard > 800 + 300 * sens && lastHeard) {
       recent.length = 0;
       lastHeard = 0;
       resetDisplay("Listening… play a string");
@@ -714,15 +731,24 @@
     const target = strs[idx];
     const cents = P.centsBetween(freq, target.freq);
 
-    // Smooth needle movement
-    shownCents += (cents - shownCents) * 0.35;
+    // Smooth needle movement (snap when the string changes or after a big jump)
+    if (idx !== show.lastIdx || Math.abs(cents - shownCents) > 40) shownCents = cents;
+    else shownCents += (cents - shownCents) * 0.1;
+    show.lastIdx = idx;
     const clamped = Math.max(-50, Math.min(50, shownCents));
     els.needle.style.left = (clamped + 50) + "%";
 
+    // Text updates ~5 times a second so the numbers are readable
+    const t = performance.now();
+    if (t - lastText < 200 && idx === show.lastTextIdx) return;
+    lastText = t; show.lastTextIdx = idx;
+    const raw = cents;
+    {
+    const cents = shownCents;
     els.note.innerHTML = `${target.label}<sub>${target.octave}</sub>`;
     const heard = P.midiToName(P.freqToMidi(freq, state.a4));
     els.readout.textContent = `${freq.toFixed(1)} Hz · target ${target.freq.toFixed(1)} Hz · ${cents >= 0 ? "+" : ""}${cents.toFixed(0)}¢` +
-      (Math.abs(cents) > 50 ? ` (hearing ${heard})` : "");
+      (Math.abs(raw) > 50 ? ` (hearing ${heard})` : "");
 
     const a = Math.abs(cents);
     $("centsValue").textContent = (cents >= 0 ? "+" : "") + cents.toFixed(0) + " ¢";
@@ -734,6 +760,7 @@
       state.done.add(idx);
       els.strings.children[idx].classList.add("done");
       updateProgress();
+    }
     }
   }
 
