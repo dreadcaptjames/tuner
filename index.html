@@ -330,6 +330,7 @@
       <div class="mode-info"><span class="mode-badge">AUTO / LOCK</span><span id="modeText">Auto: detects the nearest string. Tap a string to lock it.</span></div>
       <div class="session-spacer"></div>
       <label class="tone-option"><input type="checkbox" id="tone"><span>Play reference tone when tapping a string</span></label>
+      <label class="tone-option"><input type="checkbox" id="focus" checked><span>Instrument focus: ignore voices &amp; background noise</span></label>
       <label class="sens-option"><span>Sensitivity <b id="sensVal">8</b></span>
         <input type="range" id="sens" min="1" max="10" step="1" value="8" aria-label="Sensitivity">
         <small>Higher picks up quieter playing and holds the reading longer.</small></label>
@@ -563,8 +564,12 @@
     hp.type = "highpass"; hp.frequency.value = 50;
     const analyser = ctx.createAnalyser();
     analyser.fftSize = ctx.sampleRate > 50000 ? 8192 : 4096;
-    src.connect(hp).connect(analyser);
-    graph = { ctx, stream, analyser, buf: new Float32Array(analyser.fftSize) };
+    // Low-pass above the instrument's range (keeps the overtones that help
+    // pitch detection, removes hiss and the upper parts of speech).
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 4000;
+    src.connect(hp).connect(lp).connect(analyser);
+    graph = { ctx, stream, analyser, hp, lp, buf: new Float32Array(analyser.fftSize) };
     return graph;
   }
 
@@ -665,6 +670,18 @@
     });
   }
   let lastText = 0;
+  // Instrument focus (on by default)
+  let focus = true;
+  try { focus = localStorage.getItem("tuner-focus") !== "0"; } catch (_) {}
+  const focusEl = document.getElementById("focus");
+  if (focusEl) {
+    focusEl.checked = focus;
+    focusEl.addEventListener("change", () => {
+      focus = focusEl.checked;
+      try { localStorage.setItem("tuner-focus", focus ? "1" : "0"); } catch (_) {}
+    });
+  }
+  const pending = []; // candidate pitches (cents vs. A4) waiting to prove they're steady
   let noiseFloor = 0.0004, silentSince = 0, levelShown = 0;
 
   function loop() {
@@ -699,11 +716,40 @@
     const strs = currentStrings();
     const lo = Math.min(...strs.map((s) => s.freq)), hi = Math.max(...strs.map((s) => s.freq));
     const gate = Math.max(0.0003, noiseFloor * (4 - 0.27 * sens));
+
+    // Keep the filters matched to the selected instrument and tuning.
+    if (audio.hp && audio.lp) {
+      const hpF = focus ? lo * 0.7 : 50, lpF = focus ? Math.min(hi * 5, 6000) : 12000;
+      if (Math.abs(audio.hp.frequency.value - hpF) > 1) audio.hp.frequency.value = hpF;
+      if (Math.abs(audio.lp.frequency.value - lpF) > 1) audio.lp.frequency.value = lpF;
+    }
+
     const r = P.detectPitch(audio.buf, audio.ctx.sampleRate, {
       minFreq: Math.max(40, lo * 0.6), maxFreq: Math.min(2000, hi * 1.6), minRms: gate,
     });
 
-    if (r && r.clarity > 0.88 - 0.015 * sens) {
+    let ok = r && r.clarity > 0.88 - 0.015 * sens + (focus ? 0.04 : 0);
+    if (ok && focus) {
+      // 1. Must be near a string of this tuning (or the locked string, with more room).
+      const near = state.locked >= 0
+        ? Math.abs(P.centsBetween(r.freq, strs[state.locked].freq)) < 600
+        : strs.some((st) => Math.abs(P.centsBetween(r.freq, st.freq)) < 150);
+      // 2. Must hold a steady pitch: plucked strings do, voices slide around.
+      const c = P.freqToMidi(r.freq) * 100;
+      if (!near) { ok = false; pending.length = 0; }
+      else if (recent.length && Math.abs(P.centsBetween(r.freq, median(recent))) < 40) {
+        ok = true; // continuing a note we've already accepted
+      } else {
+        pending.push(c);
+        if (pending.length > 10) pending.shift();
+        ok = pending.length >= 10 && Math.max(...pending) - Math.min(...pending) < 18;
+        if (ok) pending.length = 0;
+      }
+    } else if (!ok) {
+      pending.length = 0;
+    }
+
+    if (ok) {
       // Drop readings that jump far from the current run (e.g. pick attack, octave slips)
       if (recent.length && Math.abs(P.centsBetween(r.freq, median(recent))) > 80) recent.length = 0;
       recent.push(r.freq);
