@@ -1,7 +1,7 @@
 // Offline support: everything is served from the on-device cache first, so the app
 // opens instantly with or without a connection. A fresh copy is fetched in the
 // background and used the next time the app opens.
-const CACHE = "tuner-v12-focus";
+const CACHE = "tuner-v13-rotation";
 const FILES = ["./", "index.html", "pitch.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 

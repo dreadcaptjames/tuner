@@ -258,6 +258,7 @@
   .sens-option {display:grid;gap:6px;margin-top:12px;color:var(--text);font-size:.9rem}
   .sens-option input {width:100%;accent-color:var(--accent)}
   .sens-option small {color:var(--quiet, #8b929c);font-size:.78rem}
+  .sens-option select {width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--panel-hi, var(--panel));color:var(--text);font:inherit}
 </style>
 </head>
 <body>
@@ -331,6 +332,13 @@
       <div class="session-spacer"></div>
       <label class="tone-option"><input type="checkbox" id="tone"><span>Play reference tone when tapping a string</span></label>
       <label class="tone-option"><input type="checkbox" id="focus" checked><span>Instrument focus: ignore voices &amp; background noise</span></label>
+      <label class="sens-option"><span>Screen rotation</span>
+        <select id="rotation" aria-label="Screen rotation">
+          <option value="portrait">Lock portrait</option>
+          <option value="landscape">Lock landscape</option>
+          <option value="any">Auto-rotate</option>
+        </select>
+        <small id="rotationNote"></small></label>
       <label class="sens-option"><span>Sensitivity <b id="sensVal">8</b></span>
         <input type="range" id="sens" min="1" max="10" step="1" value="8" aria-label="Sensitivity">
         <small>Higher picks up quieter playing and holds the reading longer.</small></label>
@@ -680,6 +688,46 @@
       focus = focusEl.checked;
       try { localStorage.setItem("tuner-focus", focus ? "1" : "0"); } catch (_) {}
     });
+  }
+  // Screen rotation lock (saved; applied on launch and when changed)
+  const rotEl = document.getElementById("rotation"), rotNote = document.getElementById("rotationNote");
+  let rotation = "portrait";
+  try { rotation = localStorage.getItem("tuner-rotation") || "portrait"; } catch (_) {}
+  async function applyRotation(fromTap) {
+    const o = screen.orientation;
+    if (rotation === "any") {
+      try { o && o.unlock && o.unlock(); } catch (_) {}
+      rotNote.textContent = "Follows how you hold the device.";
+      return;
+    }
+    if (!o || !o.lock) {
+      rotNote.textContent = "This device doesn't let web apps lock rotation. Use your phone's own rotation lock (on iPhone: Control Centre).";
+      return;
+    }
+    try {
+      await o.lock(rotation);
+      rotNote.textContent = "Locked to " + rotation + ".";
+    } catch (e) {
+      // Some browsers only allow locking in full screen.
+      if (fromTap && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        try {
+          await document.documentElement.requestFullscreen();
+          await o.lock(rotation);
+          rotNote.textContent = "Locked to " + rotation + " (full screen).";
+          return;
+        } catch (_) {}
+      }
+      rotNote.textContent = "Can't lock here. Install the app to your home screen, or use your phone's rotation lock.";
+    }
+  }
+  if (rotEl) {
+    rotEl.value = rotation;
+    rotEl.addEventListener("change", () => {
+      rotation = rotEl.value;
+      try { localStorage.setItem("tuner-rotation", rotation); } catch (_) {}
+      applyRotation(true);
+    });
+    applyRotation(false);
   }
   const pending = []; // candidate pitches (cents vs. A4) waiting to prove they're steady
   let noiseFloor = 0.0004, silentSince = 0, levelShown = 0;
