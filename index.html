@@ -547,15 +547,27 @@
 
   // ---- Microphone + analysis loop ----
   let audio = null; // { ctx, stream, analyser, buf }
-  let raf = 0;
   const recent = [];   // recent frequency readings for median smoothing
   let lastHeard = 0;
   let shownCents = 0;
 
-  // One mic stream and one audio graph are kept for the whole visit, so Stop/Start
-  // never asks for permission again (and iOS never ends up with a silent stream).
-  // Everything is released when the app goes to the background.
-  let graph = null; // { ctx, stream, analyser, buf }
+  // The mic is opened when you press Start and fully released when you press Stop,
+  // leave the app, or stop playing for a while. Samples are delivered straight from
+  // the audio thread (AudioWorklet) as they arrive, so nothing waits on the screen.
+  let graph = null;
+  const TAP_WORKLET = `
+    class Tap extends AudioWorkletProcessor {
+      constructor() { super(); this.buf = new Float32Array(1024); this.n = 0; }
+      process(inputs) {
+        const ch = inputs[0] && inputs[0][0];
+        if (ch) for (let i = 0; i < ch.length; i++) {
+          this.buf[this.n++] = ch[i];
+          if (this.n === this.buf.length) { this.port.postMessage(this.buf); this.buf = new Float32Array(1024); this.n = 0; }
+        }
+        return true;
+      }
+    }
+    registerProcessor("tuner-tap", Tap);`;
 
   // Some phones send pure silence when their audio processing is switched off;
   // if that happens we rebuild with the browser's default mic settings.
@@ -564,25 +576,50 @@
     if (graph && graph.stream.getAudioTracks().some((t) => t.readyState === "live")) return graph;
     releaseMic();
     const stream = await navigator.mediaDevices.getUserMedia(plainMic ? { audio: true } : {
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
     });
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AC({ latencyHint: "interactive" });
     const src = ctx.createMediaStreamSource(stream);
     const hp = ctx.createBiquadFilter(); // cut rumble below the lowest string
     hp.type = "highpass"; hp.frequency.value = 50;
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = ctx.sampleRate > 50000 ? 8192 : 4096;
     // Low-pass above the instrument's range (keeps the overtones that help
     // pitch detection, removes hiss and the upper parts of speech).
     const lp = ctx.createBiquadFilter();
     lp.type = "lowpass"; lp.frequency.value = 4000;
-    src.connect(hp).connect(lp).connect(analyser);
-    graph = { ctx, stream, analyser, hp, lp, buf: new Float32Array(analyser.fftSize) };
+    src.connect(hp).connect(lp);
+
+    const ring = new Float32Array(8192); // most recent samples
+    const g = { ctx, stream, hp, lp, ring, buf: ring, timer: 0, node: null };
+    try {
+      const url = URL.createObjectURL(new Blob([TAP_WORKLET], { type: "application/javascript" }));
+      await ctx.audioWorklet.addModule(url);
+      URL.revokeObjectURL(url);
+      const node = new AudioWorkletNode(ctx, "tuner-tap", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+      const mute = ctx.createGain(); mute.gain.value = 0; // keeps the node running, makes no sound
+      lp.connect(node).connect(mute).connect(ctx.destination);
+      node.port.onmessage = (e) => {
+        const chunk = e.data;
+        ring.copyWithin(0, chunk.length);
+        ring.set(chunk, ring.length - chunk.length);
+        if (audio === g) analyze();
+      };
+      g.node = node;
+    } catch (_) {
+      // Older browsers: poll an AnalyserNode instead.
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 8192;
+      lp.connect(analyser);
+      g.timer = setInterval(() => { if (audio === g) { analyser.getFloatTimeDomainData(ring); analyze(); } }, 20);
+    }
+    graph = g;
     return graph;
   }
 
   function releaseMic() {
     if (!graph) return;
+    clearInterval(graph.timer);
+    if (graph.node) graph.node.port.onmessage = null;
     graph.stream.getTracks().forEach((t) => t.stop());
     graph.ctx.close().catch(() => {});
     graph = null;
@@ -630,9 +667,7 @@
       els.readout.textContent = "Listening… play a string";
       ensureRunning(audio.ctx);
       els.meter.scrollIntoView({ behavior: "smooth", block: "center" });
-      try { localStorage.setItem("tuner-mic", "1"); } catch (_) {}
-      cancelAnimationFrame(raf);
-      loop();
+      lastAccepted = performance.now();
     } catch (e) {
       audio = null;
       els.msg.textContent = e && e.name === "NotAllowedError"
@@ -643,10 +678,9 @@
     }
   }
 
-  function stop(release) {
-    cancelAnimationFrame(raf);
+  function stop() {
     audio = null;
-    if (release) releaseMic();
+    releaseMic();
     setListening(false);
     resetDisplay("Tap Start and play a string");
   }
@@ -732,11 +766,24 @@
   const pending = []; // candidate pitches (cents vs. A4) waiting to prove they're steady
   let noiseFloor = 0.0004, silentSince = 0, levelShown = 0;
 
-  function loop() {
-    raf = requestAnimationFrame(loop);
+  let lastAccepted = 0;
+  const IDLE_STOP_MS = 90000; // release the mic after 90 s without hearing the instrument
+
+  function analyze() {
     if (!audio) return;
-    audio.analyser.getFloatTimeDomainData(audio.buf);
     const now = performance.now();
+    if (now - lastAccepted > IDLE_STOP_MS) {
+      stop();
+      els.readout.textContent = "Paused to free the microphone. Tap Start to tune again.";
+      return;
+    }
+    // Analyse just enough recent audio for the lowest string (about 2.5 periods),
+    // so a new pluck shows up almost immediately.
+    const strs0 = currentStrings();
+    const lo0 = Math.min(...strs0.map((x) => x.freq));
+    const need = Math.ceil(2.6 * audio.ctx.sampleRate / Math.max(40, lo0 * 0.6));
+    const win = Math.min(audio.ring.length, Math.max(1024, need));
+    audio.buf = audio.ring.subarray(audio.ring.length - win);
 
     let sum = 0, peak = 0;
     for (let i = 0; i < audio.buf.length; i++) { const v = audio.buf[i]; sum += v * v; if (Math.abs(v) > peak) peak = Math.abs(v); }
@@ -754,7 +801,7 @@
       if (!silentSince) silentSince = now;
       else if (now - silentSince > 2000 && !plainMic) {
         plainMic = true; silentSince = 0;
-        stop(true); start();
+        stop(); start();
         return;
       } else if (now - silentSince > 2000) {
         els.readout.textContent = "No sound from the microphone. Check that no other app is using it.";
@@ -789,8 +836,8 @@
         ok = true; // continuing a note we've already accepted
       } else {
         pending.push(c);
-        if (pending.length > 10) pending.shift();
-        ok = pending.length >= 10 && Math.max(...pending) - Math.min(...pending) < 18;
+        if (pending.length > 5) pending.shift();
+        ok = pending.length >= 5 && Math.max(...pending) - Math.min(...pending) < 22;
         if (ok) pending.length = 0;
       }
     } else if (!ok) {
@@ -801,9 +848,10 @@
       // Drop readings that jump far from the current run (e.g. pick attack, octave slips)
       if (recent.length && Math.abs(P.centsBetween(r.freq, median(recent))) > 80) recent.length = 0;
       recent.push(r.freq);
-      if (recent.length > 15) recent.shift();
+      if (recent.length > 9) recent.shift();
       lastHeard = now;
-      if (recent.length >= 3) show(median(recent), strs);
+      lastAccepted = now;
+      if (recent.length >= 2) show(median(recent), strs);
     } else if (now - lastHeard > 800 + 300 * sens && lastHeard) {
       recent.length = 0;
       lastHeard = 0;
@@ -827,7 +875,7 @@
 
     // Smooth needle movement (snap when the string changes or after a big jump)
     if (idx !== show.lastIdx || Math.abs(cents - shownCents) > 40) shownCents = cents;
-    else shownCents += (cents - shownCents) * 0.1;
+    else shownCents += (cents - shownCents) * 0.25;
     show.lastIdx = idx;
     const clamped = Math.max(-50, Math.min(50, shownCents));
     els.needle.style.left = (clamped + 50) + "%";
@@ -871,28 +919,19 @@
     els.a4.value = state.a4; save(); renderStrings();
   });
   els.tone.addEventListener("change", () => { state.tone = els.tone.checked; save(); renderStrings(); });
-  els.start.addEventListener("click", () => (audio ? stop(false) : start()));
+  els.start.addEventListener("click", () => (audio ? stop() : start()));
 
   // Going to the background frees the mic; coming back resumes tuning if it was on.
   let resumeOnShow = false;
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       resumeOnShow = !!audio;
-      stop(true);
+      stop();
     } else if (resumeOnShow) {
       resumeOnShow = false;
       start();
     }
   });
-
-  // If the browser has already remembered mic permission, start listening right away.
-  (async () => {
-    try {
-      if (localStorage.getItem("tuner-mic") !== "1" || !navigator.permissions) return;
-      const status = await navigator.permissions.query({ name: "microphone" });
-      if (status.state === "granted" && !audio) start();
-    } catch (_) { /* permissions API not available for microphone */ }
-  })();
 
   els.a4.value = state.a4;
   els.tone.checked = state.tone;
